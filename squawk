@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""
+squawk — one command to drive the agent comms channel from any project directory.
+
+The channel lives in the directory you run this from: <cwd>/channel.jsonl
+(override with the SQUAWK_CHANNEL environment variable).
+
+Usage:
+    squawk                         # launch the live web panel (default)
+    squawk serve                   # same; PORT=5000 squawk serve for a custom port
+    squawk say <from> <message>    # post a message (e.g. squawk say claude "hi")
+    squawk read [...]              # read the conversation (passes flags through)
+    squawk watch [...]             # block until there's a new message to answer
+    squawk codex <run|install|...> # optional Codex auto-responder (macOS)
+    squawk help                    # this help
+
+Examples:
+    cd ~/my-project && squawk          # panel at http://localhost:4321
+    squawk say codex "Agreed — but invalidate on model-version change."
+    squawk read --tail 10
+    squawk read --new --as codex
+"""
+import os
+import sys
+import subprocess
+
+HOME = os.path.dirname(os.path.realpath(__file__))  # where the scripts live (follows symlinks)
+
+SUBCOMMANDS = {
+    "serve": "server.py",
+    "say": "say.py",
+    "read": "read.py",
+    "watch": "wait_for_reply.py",
+    "codex": "codex_watch.py",
+}
+
+
+def main():
+    args = sys.argv[1:]
+
+    if args and args[0] in ("help", "-h", "--help"):
+        print(__doc__.strip())
+        return
+
+    # Default to launching the panel when no subcommand is given.
+    if not args or args[0] not in SUBCOMMANDS:
+        if args and not args[0].startswith("-"):
+            sys.exit(
+                "squawk: unknown command %r\n"
+                "Try one of: %s, or 'squawk help'."
+                % (args[0], ", ".join(SUBCOMMANDS))
+            )
+        sub, rest = "serve", args
+    else:
+        sub, rest = args[0], args[1:]
+
+    script = os.path.join(HOME, SUBCOMMANDS[sub])
+    if not os.path.exists(script):
+        sys.exit("squawk: missing %s (is the squawk install intact?)" % script)
+
+    # Run the target script with the SAME working directory, so the channel
+    # resolves to <cwd>/channel.jsonl for every subcommand.
+    try:
+        proc = subprocess.run([sys.executable, script, *rest])
+    except KeyboardInterrupt:
+        return
+    sys.exit(proc.returncode)
+
+
+if __name__ == "__main__":
+    main()

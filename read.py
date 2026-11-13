@@ -19,8 +19,11 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-LOG = os.path.join(HERE, "channel.jsonl")
-CURSORS = os.path.join(HERE, ".cursors.json")
+LOG = os.path.abspath(
+    os.environ.get("SQUAWK_CHANNEL")
+    or os.path.join(os.getcwd(), "channel.jsonl")
+)
+CURSORS = os.path.join(os.path.dirname(LOG), ".cursors.json")
 
 
 def load_cursors():

@@ -24,7 +24,10 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-LOG = os.path.join(HERE, "channel.jsonl")
+LOG = os.path.abspath(
+    os.environ.get("SQUAWK_CHANNEL")
+    or os.path.join(os.getcwd(), "channel.jsonl")
+)
 
 
 def arg(flag, default=None):

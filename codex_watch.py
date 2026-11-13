@@ -282,7 +282,7 @@ class Watcher:
         self._spawn_calls, self._spawn_successes = set(), set()
         with events.open("w") as output, errors.open("w+") as error_log, events.open() as reader:
             self.child = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=output,
-                stderr=error_log, text=True, cwd=self.directory.parent, env=env,
+                stderr=error_log, text=True, cwd=self.directory, env=env,
                 start_new_session=True)
             try:
                 self.child.stdin.write(prompt)
@@ -425,14 +425,15 @@ class Watcher:
             self.save(status="stopped", pid=None)
 
 
-def service(action, codex):
+def service(action, codex, directory):
     domain = "gui/" + str(os.getuid())
     target = domain + "/" + LABEL
-    runtime = HERE / ".codex-watch"
+    runtime = directory / ".codex-watch"
     if action == "install":
         runtime.mkdir(mode=0o700, exist_ok=True)
         data = {"Label": LABEL, "ProgramArguments": [sys.executable, str(HERE / "codex_watch.py"),
-                "run", "--codex", codex], "WorkingDirectory": str(HERE.parent),
+                "run", "--codex", codex, "--dir", str(directory)],
+                "WorkingDirectory": str(directory),
                 "RunAtLoad": True, "KeepAlive": True, "ThrottleInterval": 10,
                 "EnvironmentVariables": {"PATH": os.environ.get("PATH", "/usr/bin:/bin")},
                 "StandardOutPath": str(runtime / "service.stdout.log"),
@@ -444,7 +445,7 @@ def service(action, codex):
         # Seed the cursor now so the first new message cannot be missed at startup.
         state = runtime / "state.json"
         if not state.exists():
-            save_state(state, {"offset": read_channel(HERE / "channel.jsonl")[1]})
+            save_state(state, {"offset": read_channel(directory / "channel.jsonl")[1]})
         action = "start"
     if action == "start":
         subprocess.run(["launchctl", "enable", target], check=True)
@@ -462,7 +463,7 @@ def service(action, codex):
     elif action == "status":
         loaded = subprocess.run(["launchctl", "print", target], stdout=subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL).returncode == 0
-        state = runtime / "state.json"
+        state = directory / ".codex-watch" / "state.json"
         info = json.loads(state.read_text()) if state.exists() else {}
         info["service_loaded"] = loaded
         print(json.dumps(info, indent=2))
@@ -472,26 +473,29 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["run", "install", "start", "stop", "status", "cancel"])
     parser.add_argument("--codex", default=shutil.which("codex"))
+    parser.add_argument("--dir", default=os.environ.get("SQUAWK_DIR") or os.getcwd(),
+                        help="Directory holding channel.jsonl (default: current directory)")
     parser.add_argument("--timeout", type=int, default=3600, help="Research attempt time limit in seconds")
     parser.add_argument("--idle-timeout", type=int, default=900, help="Maximum time without a CLI event")
     args = parser.parse_args()
     if not args.codex:
         parser.error("Codex CLI not found")
+    directory = Path(args.dir).resolve()
     if args.action == "run":
-        runtime = HERE / ".codex-watch"
+        runtime = directory / ".codex-watch"
         runtime.mkdir(mode=0o700, exist_ok=True)
         handler = logging.handlers.RotatingFileHandler(runtime / "watcher.log", maxBytes=1000000, backupCount=2)
         logging.basicConfig(level=logging.INFO, handlers=[handler], format="%(asctime)s %(levelname)s %(message)s")
-        Watcher(HERE, args.codex, timeout=args.timeout, idle_timeout=args.idle_timeout).run()
+        Watcher(directory, args.codex, timeout=args.timeout, idle_timeout=args.idle_timeout).run()
     elif args.action == "cancel":
-        state = json.loads((HERE / ".codex-watch" / "state.json").read_text())
+        state = json.loads((directory / ".codex-watch" / "state.json").read_text())
         if state.get("job_token"):
-            save_state(HERE / ".codex-watch" / "cancel.json", {"job_token": state["job_token"]})
+            save_state(directory / ".codex-watch" / "cancel.json", {"job_token": state["job_token"]})
             print("Cancellation requested for the current task")
         else:
             print("There is no active Codex task")
     else:
-        service(args.action, args.codex)
+        service(args.action, args.codex, directory)
 
 
 if __name__ == "__main__":

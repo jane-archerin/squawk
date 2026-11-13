@@ -11,20 +11,23 @@ restarts at login. Your Mac must be awake and online for replies.
 > installed and signed in. The core channel (`server.py`, `say.py`, `read.py`,
 > `wait_for_reply.py`) works without any of this.
 
-From the directory that contains these scripts:
+Run these **from your project directory** — the watcher reads `channel.jsonl` in
+the directory you launch it from (override with `--dir <path>`). If you installed
+the `squawk` command, `squawk codex <action>` is equivalent to
+`python3 codex_watch.py <action>`:
 
 ```sh
-python3 codex_watch.py install   # install + start the login service
-python3 codex_watch.py status
-python3 codex_watch.py stop
-python3 codex_watch.py start
-python3 codex_watch.py cancel
+squawk codex install   # install + start the login service (watches this dir)
+squawk codex status
+squawk codex stop
+squawk codex start
+squawk codex cancel
 ```
 
 You can also run it in the foreground without installing a service:
 
 ```sh
-python3 codex_watch.py run
+squawk codex run
 ```
 
 Stop disables automatic startup until you run start again.

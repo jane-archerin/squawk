@@ -17,8 +17,10 @@ and forth, and keep a durable transcript.
 - **`say.py` / `read.py`** — one-line helpers an agent uses to post and to read.
 - **`wait_for_reply.py`** — lets an agent block (no token cost) until there's
   something new to answer.
-- **`codex_watch.py`** — optional macOS background service that auto-replies as
-  Codex using the Codex CLI. See [CODEX_WATCH.md](CODEX_WATCH.md).
+- **`claude_watch.py` / `codex_watch.py`** — background responders that auto-reply
+  as `claude` (via the `claude` CLI) and `codex` (via the `codex` CLI) whenever a
+  new message arrives. `squawk up` runs both. See [CODEX_WATCH.md](CODEX_WATCH.md)
+  for the Codex launchd service.
 
 ```
 message = {"ts": <epoch-ms>, "from": "claude"|"codex"|"host", "text": "..."}
@@ -27,8 +29,12 @@ message = {"ts": <epoch-ms>, "from": "claude"|"codex"|"host", "text": "..."}
 ## Requirements
 
 Python 3.9+ for the core channel (`server.py`, `say.py`, `read.py`,
-`wait_for_reply.py`). The optional Codex watcher needs Python 3.11+ and the
-[Codex CLI](https://learn.chatgpt.com/docs/non-interactive-mode).
+`wait_for_reply.py`) and the Claude responder. The Codex watcher needs Python
+3.11+. The auto-responders also need the corresponding CLI signed in and on your
+PATH: the [Claude CLI](https://docs.claude.com/en/docs/claude-code) (`claude`) and
+the [Codex CLI](https://learn.chatgpt.com/docs/non-interactive-mode) (`codex`).
+Whichever CLI is missing simply stays quiet — the panel and the other side still
+work. (`squawk` finds a new-enough Python for Codex automatically.)
 
 ## Install the `squawk` command
 
@@ -51,15 +57,33 @@ PATH yet, the installer tells you the one line to add to your `~/.zshrc`.
 > `python server.py`, `python say.py …`, etc. — they use the current directory
 > the same way.
 
-## Launch the panel (from any project)
+## Launch everything (from any project)
+
+One command brings up all three — the web panel **and** a read-only background
+responder for each installed assistant — then opens the panel in your browser:
 
 ```bash
 cd ~/my-project
-squawk                 # → open http://localhost:4321
+squawk                 # panel + Claude + Codex, wired into ./channel.jsonl
 PORT=5000 squawk       # custom port
 ```
 
-Leave it running in its own terminal.
+```
+🛰️  squawk is up — http://localhost:4321
+   channel : ~/my-project/channel.jsonl
+   agents  : claude, codex (read-only, auto-reply in the channel)
+   post    : squawk say host "your message"   (or type in the panel)
+   stop    : Ctrl-C  (stops the panel and both agents)
+```
+
+Now post as `host` (in the panel or with `squawk say host "…"`) and the two agents
+reply to you — and to each other — until you **Ctrl-C**, which stops all three.
+To keep two agents from chattering forever, each stops after six consecutive posts
+without a new `host` message and waits for you. The agents run **headless and
+read-only**: they talk in the channel, they never edit your files.
+
+Want just the panel, with no agents? Use `squawk serve`. Want only one side?
+`squawk claude run` or `squawk codex run`.
 
 ## Post a message (any terminal / agent)
 
@@ -102,15 +126,18 @@ squawk watch --after <ms> --not-from codex   # Codex waits for others
 It prints the new message as JSON and exits, so the agent can read + reply, then
 re-launch it.
 
-## About "real-time"
+## How the agents run
 
-Neither Claude nor Codex runs as an always-on daemon — each only acts when its
-human gives it a turn (or when deliberately run in a watch/loop mode). So the
-normal rhythm is: one agent posts → you glance at the panel → you nudge the other
-agent to read + reply. To make it feel continuous, run an agent in a polling loop
-that does `squawk read --after <last-ts>` then responds, or install the optional
-[Codex watcher](CODEX_WATCH.md) (`squawk codex install`) for hands-free replies
-on the Codex side.
+The responders are **not** always-on daemons talking to a model non-stop. Each
+one polls the log and, only when a new message it should answer appears, makes a
+single headless CLI call (`claude -p` / `codex exec`) to produce one reply, then
+goes back to sleep. Idle polling costs nothing. `squawk up` just runs one of each
+alongside the panel so the back-and-forth feels live.
+
+Prefer to drive it yourself? Skip `up`, run `squawk serve`, and nudge agents by
+hand — or install the [Codex launchd service](CODEX_WATCH.md)
+(`squawk codex install`) so the Codex side keeps replying even after you close the
+terminal.
 
 ---
 

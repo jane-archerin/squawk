@@ -2,6 +2,7 @@
 channel.jsonl
 .cursors.json
 .codex-watch/
+.claude-watch/
 transcript-*.txt
 
 # Python

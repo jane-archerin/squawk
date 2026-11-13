@@ -85,7 +85,8 @@ def control(msg):
 
 
 def eligible(msg):
-    return msg.get("from", "").lower() in ("host", "claude") and not control(msg)
+    return (msg.get("from", "").lower() in ("host", "claude")
+            and not control(msg) and not msg.get("watcher_event"))
 
 
 def token_for(records):

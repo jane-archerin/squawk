@@ -1,0 +1,10 @@
+# Runtime conversation + state — never commit these
+channel.jsonl
+.cursors.json
+.codex-watch/
+transcript-*.txt
+
+# Python
+__pycache__/
+*.pyc
+.DS_Store
